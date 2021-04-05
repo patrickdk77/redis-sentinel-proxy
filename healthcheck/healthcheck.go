@@ -2,9 +2,12 @@ package main
 
 import (
 	"os"
-	
-	"github.com/go-redis/redis/v7"
+	"context"
+
+	"github.com/go-redis/redis/v8"
 )
+
+var ctx = context.Background()
 
 func main() {
 	host := os.Getenv("LISTEN")
@@ -13,7 +16,7 @@ func main() {
 	}
 	pass := os.Getenv("PASSWORD")
 	client := redis.NewClient(&redis.Options{ Addr: host, Password: pass, })
-	role, err := client.Do("role").Result()
+	role, err := client.Do(ctx,"role").Result()
 	if err != nil {
 		os.Exit(1)
 	}
