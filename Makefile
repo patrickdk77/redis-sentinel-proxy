@@ -29,13 +29,13 @@ release: export DOCKER_EXTRATAGS=latest
 release: release-publish
 
 docker:
-        ./hooks/post_checkout
-        ./hooks/pre_build
-        ./hooks/build
-#       ./hooks/push
+	./hooks/post_checkout
+	./hooks/pre_build
+	./hooks/build
+#	./hooks/push
 
 release-publish:
-        ./hooks/push
+	./hooks/push
 
 deps:
 	go get .
