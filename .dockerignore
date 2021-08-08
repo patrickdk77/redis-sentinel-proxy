@@ -9,4 +9,4 @@ dist/
 hooks
 docker-compose.yml
 docker-compose.override.yml
-
+redis-sentinel-proxy
