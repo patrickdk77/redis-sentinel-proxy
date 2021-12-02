@@ -14,8 +14,9 @@ func main() {
 	if len(host) == 0 {
 		host = "localhost:9999"
 	}
+        user := os.Getenv("USERNAME")
 	pass := os.Getenv("PASSWORD")
-	client := redis.NewClient(&redis.Options{ Addr: host, Password: pass, })
+	client := redis.NewClient(&redis.Options{ Addr: host, Username: user, Password: pass, })
 	role, err := client.Do(ctx,"role").Result()
 	if err != nil {
 		os.Exit(1)

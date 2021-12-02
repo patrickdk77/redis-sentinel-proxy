@@ -21,6 +21,7 @@ Environment Variables     | Description                                       | 
 LISTEN                    | IP and Port to bind the proxy to                  |          | :9999
 SENTINEL                  | sentinel server and port to connect to, or list   |          | :26379
 MASTER                    | master group name                                 |          | mymaster
+USERNAME                  | username to authenticate with if using v6 acls    |          | -
 PASSWORD                  | password to authenticate with to sentinel         |          | -
 DEBUG                     | debug output                                      |          | false
 TIMEOUTMS                 | timeout for sentinel and master connections       |          | 2000

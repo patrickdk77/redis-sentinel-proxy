@@ -19,6 +19,7 @@ var (
 	localAddr    = flag.String("listen",    ":9999",    "local address")
 	sentinelAddr = flag.String("sentinel",  ":26379",   "remote address, split with ','")
 	masterName   = flag.String("master",    "mymaster", "name of the master redis node")
+	username     = flag.String("username",  "",         "username (if any) to authenticate, v6 ACLs")
 	password     = flag.String("password",  "",         "password (if any) to authenticate")
 	debug        = flag.Bool  ("debug",     false,      "sets debug mode")
 	timeout      = flag.Int   ("timeoutms", 2000,       "connect timeout in milliseconds")
@@ -73,7 +74,7 @@ func master(stopChan *chan string) {
 	var possibleMaster *net.TCPAddr
 	for {
 		// has master changed from last time?
-		possibleMaster, err = getMasterAddr(*sentinelAddr, *masterName, *password)
+		possibleMaster, err = getMasterAddr(*sentinelAddr, *masterName, *username, *password)
 		if err != nil {
 			log.Printf("[MASTER] Error polling for new master: %s\n", err)
 		} else {
@@ -131,7 +132,7 @@ func proxy(client *net.TCPConn, redisAddr *net.TCPAddr, stopChan <-chan string) 
 	log.Printf("[PROXY %s => %s] Closing connection\n", client.RemoteAddr().String(), redisAddr.String())
 }
 
-func getMasterAddr(sentinelAddressList string, masterName string, password string) (*net.TCPAddr, error) {
+func getMasterAddr(sentinelAddressList string, masterName string, username string, password string) (*net.TCPAddr, error) {
 
   sentinelAddress_list := strings.Split(sentinelAddressList,",")
   for _, sentinelAddress := range sentinelAddress_list {
@@ -155,9 +156,16 @@ func getMasterAddr(sentinelAddressList string, masterName string, password strin
 		defer conn.Close()
 
 		if len(password) > 0 {
-			conn.Write([]byte(fmt.Sprintf("AUTH %s\n", password)))
-			if *debug {
-				fmt.Println("> AUTH ", password)
+			if len(username) > 0 {
+				conn.Write([]byte(fmt.Sprintf("AUTH %s %s\n", username, password)))
+				if *debug {
+					fmt.Println("> AUTH ", username, " ", password)
+				}
+			} else {
+				conn.Write([]byte(fmt.Sprintf("AUTH %s\n", password)))
+				if *debug {
+					fmt.Println("> AUTH ", password)
+				}
 			}
 			authResp := make([]byte, 256)
 			_, err = conn.Read(authResp)

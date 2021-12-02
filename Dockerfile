@@ -13,7 +13,7 @@ ARG BUILD_REF
 ARG BUILD_GOARCH
 ARG BUILD_GOOS
 RUN go mod download \
- && go mod verify \
+# && go mod verify \
  && CGO_ENABLED=0 GOOS=${BUILD_GOOS} GOARCH=${BUILD_GOARCH} go build \
     -ldflags '-s -w -X main.ver=${BUILD_VERSION} \
     -X main.commit=${BUILD_REF} -X main.date=${BUILD_DATE}' -o ./health ./healthcheck \

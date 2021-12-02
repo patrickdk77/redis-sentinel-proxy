@@ -41,14 +41,14 @@ deps:
 	go get .
 
 run-docker: ## Run dockerized service directly
-	docker run $(DOCKER_NAME):latest
+	docker run $(DOCKER_REPO):latest
 
 push: ## docker push image to registry
-	docker push $(DOCKER_NAME):latest
+	docker push $(DOCKER_REPO):latest
 
 build-local: ## Build the project
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build .
-	docker build -t $(DOCKER_NAME):latest .
+	docker build -t $(DOCKER_REPO):latest .
 
 run: ## Build and run the project
 	go build . && ./redis-sentinel-proxy
