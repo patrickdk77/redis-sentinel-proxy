@@ -100,7 +100,9 @@ func master(stopChan *chan string) {
 
 func pipe(r net.Conn, w net.Conn, proxyChan chan<- string) {
 	bytes, err := io.Copy(w, r)
-	log.Printf("[PROXY %s => %s] Shutting down stream; transferred %v bytes: %v\n", w.RemoteAddr().String(), r.RemoteAddr().String(), bytes, err)
+    if *debug {
+	    log.Printf("[PROXY %s => %s] Shutting down stream; transferred %v bytes: %v\n", w.RemoteAddr().String(), r.RemoteAddr().String(), bytes, err)
+    }
 	close(proxyChan)
 }
 
@@ -113,7 +115,9 @@ func proxy(client *net.TCPConn, redisAddr *net.TCPAddr, stopChan <-chan string) 
 		return
 	}
 
-	log.Printf("[PROXY %s => %s] New connection\n", client.RemoteAddr().String(), redisAddr.String())
+    if *debug {
+		log.Printf("[PROXY %s => %s] New connection\n", client.RemoteAddr().String(), redisAddr.String())
+	}
 	defer client.Close()
 	defer redis.Close()
 
@@ -129,7 +133,9 @@ func proxy(client *net.TCPConn, redisAddr *net.TCPAddr, stopChan <-chan string) 
 	case <-redisChan:
 	}
 
-	log.Printf("[PROXY %s => %s] Closing connection\n", client.RemoteAddr().String(), redisAddr.String())
+    if *debug {
+	    log.Printf("[PROXY %s => %s] Closing connection\n", client.RemoteAddr().String(), redisAddr.String())
+    }
 }
 
 func getMasterAddr(sentinelAddressList string, masterName string, username string, password string) (*net.TCPAddr, error) {
