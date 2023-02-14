@@ -13,13 +13,30 @@ export GIT_BRANCH=$(BRANCH)
 export GIT_SHA1=$(SHA1)
 export GIT_TAG=$(SHA1)
 export GIT_VERSION=$(VER)
+export GIT_VERSION_MAJOR=$(shell echo $(VER) | cut -f1 -d.)
+export GIT_VERSION_MINOR=$(shell echo $(VER) | cut -f2 -d.)
 export IMAGE_NAME=$(DOCKER_REPO):$(DOCKER_TAG)
 export SOURCE_BRANCH=$(BRANCH)
 export SOURCE_COMMIT=$(SHA1)
 export SOURCE_TYPE=git
 export SOURCE_REPOSITORY_URL=$(ORIGIN)
 
-all: build
+all: buildx
+
+buildx:
+	docker buildx build --pull --push \
+		--platform linux/amd64,linux/arm64 \
+		--build-arg BUILD_GOOS=linux \
+		--build-arg BUILD_DATE=${BUILD_DATE} \
+		--build-arg BUILD_REF=${GIT_SHORT_SHA1} \
+		--build-arg BUILD_VERSION=${GIT_VERSION} \
+		--build-arg BUILD_REPO=${BUILD_REPO} \
+		--file ${DOCKERFILE_PATH} \
+		--tag ${DOCKER_REPO}:${GIT_VERSION} \
+		--tag ${DOCKER_REPO}:${GIT_VERSION_MAJOR} \
+		--tag ${DOCKER_REPO}:${GIT_VERSION_MAJOR}.${GIT_VERSION_MINOR} \
+		--tag ${IMAGE_NAME} \
+		.
 
 build: export DOCKER_TAG=$(GIT_VERSION)
 build: docker
