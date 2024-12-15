@@ -3,7 +3,7 @@ module github.com/patrickdk77/redis-sentinel-proxy
 go 1.16
 
 require (
-	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/jnovack/flag v1.16.0
