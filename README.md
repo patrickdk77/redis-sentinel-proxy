@@ -25,8 +25,7 @@ USERNAME                  | username to authenticate with if using v6 acls    | 
 PASSWORD                  | password to authenticate with to sentinel         |          | -
 DEBUG                     | debug output                                      |          | false
 TIMEOUTMS                 | timeout for sentinel and master connections       |          | 2000
-CHECKMS                   | poll time to check sentinel for master changes    |          | 250
-                          | set CHECKMS to 0 to disable checks                |          |
+CHECKMS                   | poll time to check sentinel for master changes, set to 0 to disable checks |          | 250
 EVENTLISTENER             | subscribe to master changes from sentinal         |          | false
 
 
