@@ -203,7 +203,9 @@ func resolveSentinelAddress(address string) ([]net.IP, string, error) {
 
 func getSentinelConn(host net.IP, port string) (net.Conn, error) {
 	sentineladdr := net.JoinHostPort(host.String(), port)
-	log.Printf("[MASTER] Connecting to Sentinel at %v:%v", host, port)
+	if *debug {
+		log.Printf("[MASTER] Connecting to Sentinel at %v:%v", host, port)
+	}
 	conn, err := net.DialTimeout("tcp", sentineladdr, timeoutms*time.Millisecond)
 	if err != nil {
 		return nil, fmt.Errorf("[MASTER] Unable to connect to Sentinel at %v:%v: %v", host, port, err)
@@ -276,7 +278,9 @@ func subForSwitchMasterEvent(stopChan *chan string) {
 
 					setNewMaster(parts[3], parts[4], fmt.Sprintf("%v:%v", sentinelIP, sentinelPort), stopChan)
 				}
-				log.Println("[MASTER] Got disconnected from Sentinel")
+				if *debug {
+					log.Println("[MASTER] Got disconnected from Sentinel")
+				}
 			}
 		}
 	}
