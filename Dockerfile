@@ -1,6 +1,6 @@
 ARG BUILD_FROM_PREFIX
 
-FROM ${BUILD_FROM_PREFIX}golang:alpine3.19 AS build
+FROM ${BUILD_FROM_PREFIX}golang:alpine3.22 AS build
 ARG BUILD_ARCH
 ARG QEMU_ARCH
 COPY .gitignore qemu-${QEMU_ARCH}-static* /usr/bin/
@@ -12,7 +12,8 @@ ARG BUILD_DATE
 ARG BUILD_REF
 ARG BUILD_GOARCH
 ARG BUILD_GOOS
-RUN go mod download \
+RUN export GOPROXY=direct \ 
+ && go mod download \
 # && go mod verify \
  && CGO_ENABLED=0 GOOS=${BUILD_GOOS} GOARCH=${BUILD_GOARCH} go build \
     -ldflags '-s -w -X main.ver=${BUILD_VERSION} \
@@ -21,7 +22,7 @@ RUN go mod download \
     -ldflags '-s -w -X main.ver=${BUILD_VERSION} \
     -X main.commit=${BUILD_REF} -X main.date=${BUILD_DATE}' -o .
 
-FROM alpine:3.19 AS libs
+FROM alpine:3.22 AS libs
 RUN apk --no-cache add ca-certificates
 
 FROM scratch

@@ -55,7 +55,7 @@ release-publish:
 	./hooks/push
 
 deps:
-	go get .
+	GOPROXY=direct go get .
 
 run-docker: ## Run dockerized service directly
 	docker run $(DOCKER_REPO):latest
