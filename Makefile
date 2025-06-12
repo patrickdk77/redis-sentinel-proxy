@@ -54,8 +54,16 @@ docker:
 release-publish:
 	./hooks/push
 
+update:
+	GOPROXY=direct go get -u
+	GOPROXY=direct go mod tidy
+
 deps:
-	GOPROXY=direct go get .
+	GOPROXY=direct go mod vendor
+#	GOPROXY=direct go get .
+#	@docker run --rm -it -e GOPROXY=direct -v "${PWD}:/go/src/github.com/patrickdk77/redis-sentinel-proxy/" \
+#			-w /go/src/github.com/patrickdk77/redis-sentinel-proxy/ \
+#			golang:alpine3.21 sh -c 'apk --no-cache add git && go mod vendor'
 
 run-docker: ## Run dockerized service directly
 	docker run $(DOCKER_REPO):latest
