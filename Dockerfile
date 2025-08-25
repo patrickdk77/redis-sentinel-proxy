@@ -1,6 +1,6 @@
 ARG BUILD_FROM_PREFIX
 
-FROM ${BUILD_FROM_PREFIX}golang:alpine3.22 AS build
+FROM ${BUILD_FROM_PREFIX}golang:alpine AS build
 ARG BUILD_ARCH
 ARG QEMU_ARCH
 COPY .gitignore qemu-${QEMU_ARCH}-static* /usr/bin/
@@ -22,7 +22,7 @@ RUN export GOPROXY=direct \
     -ldflags '-s -w -X main.ver=${BUILD_VERSION} \
     -X main.commit=${BUILD_REF} -X main.date=${BUILD_DATE}' -o .
 
-FROM alpine:3.22 AS libs
+FROM alpine AS libs
 RUN apk --no-cache add ca-certificates
 
 FROM scratch
@@ -44,7 +44,6 @@ ARG BUILD_DATE
 ARG BUILD_REF
 LABEL maintainer="Patrick Domack (patrickdk@patrickdk.com)" \
   Description="Redis Sentinal Proxy for non-sentinal aware apps" \
-  ForkedFrom="" \
   org.label-schema.schema-version="1.0" \
   org.label-schema.build-date="${BUILD_DATE}" \
   org.label-schema.name="redis-sentinel-proxy" \
@@ -53,5 +52,16 @@ LABEL maintainer="Patrick Domack (patrickdk@patrickdk.com)" \
   org.label-schema.usage="https://github.com/patrickdk77/redis-sentinel-proxy/tree/master/README.md" \
   org.label-schema.vcs-url="https://github.com/patrickdk77/redis-sentinel-proxy" \
   org.label-schema.vcs-ref="${BUILD_REF}" \
-  org.label-schema.version="${BUILD_VERSION}"
-
+  org.label-schema.version="${BUILD_VERSION}" \
+  org.opencontainers.url="https://github.com/patrickdk77/redis-sentinel-proxy" \
+  org.opencontainers.documentation="https://github.com/patrickdk77/redis-sentinel-proxy/tree/master/README.md" \
+  org.opencontainers.source="https://github.com/patrickdk77/redis-sentinel-proxy" \
+  org.opencontainers.revision="${BUILD_REF}" \
+  org.opencontainers.image.authors="Patrick Domack (patrickdk@patrickdk.com)" \
+  org.opencontainers.image.created="${BUILD_DATE}" \
+  org.opencontainers.image.title="redis-sentinel-proxy" \
+  org.opencontainers.image.description="Redis Sentinal Proxy for non-sentinal aware apps" \
+  org.opencontainers.image.version="${BUILD_VERSION}" \
+  org.opencontainers.image.licenses="MIT" \
+  org.opencontainers.image.ref.name="redis-sentinel-proxy" \
+  version="${BUILD_VERSION}"
