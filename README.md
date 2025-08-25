@@ -23,6 +23,7 @@ SENTINEL                  | sentinel server and port to connect to, or list   | 
 MASTER                    | master group name                                 |          | mymaster
 USERNAME                  | username to authenticate with if using v6 acls    |          | -
 PASSWORD                  | password to authenticate with to sentinel         |          | -
+REDIS_PASSWORD            | password to authenticate with to redis if different from sentinel |          | -
 DEBUG                     | debug output                                      |          | false
 TIMEOUTMS                 | timeout for sentinel and master connections       |          | 2000
 CHECKMS                   | poll time to check sentinel for master changes, set to 0 to disable checks |          | 250

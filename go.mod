@@ -1,10 +1,10 @@
 module github.com/patrickdk77/redis-sentinel-proxy
 
-go 1.24.2
+go 1.25
 
 require (
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/jnovack/flag v1.24.2
+	github.com/jnovack/flag v1.25.0
 )
 
 require (
