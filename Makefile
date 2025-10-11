@@ -24,20 +24,15 @@ export SOURCE_REPOSITORY_URL=$(ORIGIN)
 all: buildx
 
 buildx:
-	docker buildx build --pull --push \
-		--platform linux/amd64,linux/arm64 \
-		--build-arg BUILD_GOOS=linux \
-		--build-arg BUILD_DATE=${BUILD_DATE} \
-		--build-arg BUILD_REF=${GIT_SHORT_SHA1} \
-		--build-arg BUILD_VERSION=${GIT_VERSION} \
-		--build-arg BUILD_REPO=${BUILD_REPO} \
-		--file ${DOCKERFILE_PATH} \
-		--tag ${DOCKER_REPO}:${GIT_VERSION} \
-		--tag ${DOCKER_REPO}:${GIT_VERSION_MAJOR} \
-		--tag ${DOCKER_REPO}:${GIT_VERSION_MAJOR}.${GIT_VERSION_MINOR} \
-		--tag ${IMAGE_NAME} \
-		.
-
+	docker buildx build --pull --push --platform linux/amd64,linux/arm64 --build-arg BUILD_GOOS=linux --build-arg BUILD_DATE=${BUILD_DATE} --build-arg BUILD_REF=${GIT_SHORT_SHA1} --build-arg BUILD_VERSION=${GIT_VERSION} --build-arg BUILD_REPO=${BUILD_REPO} --file ${DOCKERFILE_PATH} --tag docker.patrickdk.com/valkey-proxy:${GIT_VERSION} .
+	skopeo copy --all docker://docker.patrickdk.com/valkey-proxy:${GIT_VERSION} docker://docker.patrickdk.com/valkey-proxy:${GIT_VERSION_MAJOR}.${GIT_VERSION_MINOR}
+	skopeo copy --all docker://docker.patrickdk.com/valkey-proxy:${GIT_VERSION} docker://docker.patrickdk.com/valkey-proxy:${GIT_VERSION_MAJOR}
+	skopeo copy --all docker://docker.patrickdk.com/valkey-proxy:${GIT_VERSION} docker://docker.patrickdk.com/valkey-proxy:latest
+	skopeo copy --all docker://docker.patrickdk.com/valkey-proxy:${GIT_VERSION} docker://${DOCKER_REPO}:${GIT_VERSION}
+	skopeo copy --all docker://docker.patrickdk.com/valkey-proxy:${GIT_VERSION} docker://${DOCKER_REPO}:${GIT_VERSION_MAJOR}.${GIT_VERSION_MINOR}
+	skopeo copy --all docker://docker.patrickdk.com/valkey-proxy:${GIT_VERSION} docker://${DOCKER_REPO}:${GIT_VERSION_MAJOR}
+	skopeo copy --all docker://docker.patrickdk.com/valkey-proxy:${GIT_VERSION} docker://${DOCKER_REPO}:latest
+	
 build: export DOCKER_TAG=$(GIT_VERSION)
 build: docker
 

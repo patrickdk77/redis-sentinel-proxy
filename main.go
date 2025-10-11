@@ -92,7 +92,7 @@ func master(stopChan *chan string) {
 		if masterAddr == nil {
 			// if we haven't discovered a master at all, then slow our roll as the cluster is
 			// probably still coming up
-			time.Sleep(checkms * time.Second)
+			time.Sleep(timeoutms * time.Millisecond)
 		} else {
 			// if we've seen a master before, then it's time for beast mode
 			time.Sleep(checkms * time.Millisecond)
@@ -201,8 +201,8 @@ func resolveSentinelAddress(address string) ([]net.IP, string, error) {
 	return sentinels, sentinelPort, nil
 }
 
-func getSentinelConn(host net.IP, port string) (net.Conn, error) {
-	sentineladdr := net.JoinHostPort(host.String(), port)
+func getSentinelConn(host string, port string) (net.Conn, error) {
+	sentineladdr := net.JoinHostPort(host, port)
 	if *debug {
 		log.Printf("[MASTER] Connecting to Sentinel at %v:%v", host, port)
 	}
@@ -244,7 +244,7 @@ func subForSwitchMasterEvent(stopChan *chan string) {
 				return
 			}
 			for _, sentinelIP := range sentinels {
-				conn, err := getSentinelConn(sentinelIP, sentinelPort)
+				conn, err := getSentinelConn(sentinelIP.String(), sentinelPort)
 				if err != nil {
 					log.Println(err)
 					continue
@@ -263,7 +263,7 @@ func subForSwitchMasterEvent(stopChan *chan string) {
 					if *debug {
 						fmt.Print("< ", message)
 					}
-					parts := strings.Split(message, " ")
+					parts := strings.Split(strings.TrimRight(message, "\r\n"), " ")
 					if len(parts) == 1 {
 						continue
 					}
@@ -276,13 +276,14 @@ func subForSwitchMasterEvent(stopChan *chan string) {
 						continue
 					}
 
-					setNewMaster(parts[3], parts[4], fmt.Sprintf("%v:%v", sentinelIP, sentinelPort), stopChan)
+					setNewMaster(parts[3], parts[4], fmt.Sprintf("%v:%v event", sentinelIP, sentinelPort), stopChan)
 				}
 				if *debug {
 					log.Println("[MASTER] Got disconnected from Sentinel")
 				}
 			}
 		}
+		time.Sleep(timeoutms * time.Millisecond)
 	}
 }
 
@@ -294,7 +295,7 @@ func getMasterAddr(stopChan *chan string) error {
 			return err
 		}
 		for _, sentinelIP := range sentinels {
-			conn, err := getSentinelConn(sentinelIP, sentinelPort)
+			conn, err := getSentinelConn(sentinelIP.String(), sentinelPort)
 			if err != nil {
 				log.Println(err)
 				continue
