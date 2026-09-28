@@ -28,6 +28,7 @@ DEBUG                     | debug output                                      | 
 TIMEOUTMS                 | timeout for sentinel and master connections       |          | 2000
 CHECKMS                   | poll time to check sentinel for master changes, set to 0 to disable checks |          | 250
 EVENTLISTENER             | subscribe to master changes from sentinal         |          | false
+MAJORITY                  | switch only when most sentinels that answer agree on the master. Also asks the peer sentinels each one lists. A switch-master event starts a recount instead of switching |          | false
 
 
 
