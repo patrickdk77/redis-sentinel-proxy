@@ -6,7 +6,7 @@ metadata:
   labels:
     app: redis-sentinel-proxy
 spec:
-  type: NodePort
+  type: ClusterIP
   ports:
   - port: 9999
     name: redis-sentinel-proxy

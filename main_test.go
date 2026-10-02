@@ -8,20 +8,26 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
 
 type fakeRedis struct {
-	l net.Listener
+	l     net.Listener
+	reply string
 }
 
 func newRedis(t *testing.T) *fakeRedis {
+	return newRedisReply(t, "")
+}
+
+func newRedisReply(t *testing.T, reply string) *fakeRedis {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fakeRedis{l: l}
+	f := &fakeRedis{l: l, reply: reply}
 	t.Cleanup(func() { l.Close() })
 	go f.serve()
 	return f
@@ -41,7 +47,11 @@ func (f *fakeRedis) serve() {
 				if err != nil {
 					return
 				}
-				c.Write([]byte("+PONG\r\n"))
+				if f.reply == "" {
+					c.Write([]byte("+PONG\r\n"))
+				} else {
+					c.Write([]byte(f.reply))
+				}
 			}
 		}()
 	}
@@ -49,7 +59,7 @@ func (f *fakeRedis) serve() {
 
 func (f *fakeRedis) addr() string { return f.l.Addr().String() }
 
-type peer struct{ addr, flags string }
+type peer struct{ addr, flags, runid string }
 
 type fakeSentinel struct {
 	l      net.Listener
@@ -60,17 +70,23 @@ type fakeSentinel struct {
 }
 
 type sstate struct {
-	master  string
-	raw     string
-	peers   []peer
-	hang    bool
-	split   bool
-	authErr bool
-	silent  bool
-	dropSub bool
-	auths   [][]string
-	conns   []net.Conn
-	subs    []net.Conn
+	runid    string
+	infoRaw  string
+	hangInfo bool
+	peersRaw string
+	hangPeer bool
+	dropAuth bool
+	master   string
+	raw      string
+	peers    []peer
+	hang     bool
+	split    bool
+	authErr  bool
+	silent   bool
+	dropSub  bool
+	auths    [][]string
+	conns    []net.Conn
+	subs     []net.Conn
 }
 
 func newSentinel(t *testing.T, master string) *fakeSentinel {
@@ -78,8 +94,11 @@ func newSentinel(t *testing.T, master string) *fakeSentinel {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fakeSentinel{l: l, st: sstate{master: master},
-		closed: make(chan struct{})}
+	return startSentinel(t, l, master)
+}
+
+func startSentinel(t *testing.T, l net.Listener, master string) *fakeSentinel {
+	f := &fakeSentinel{l: l, st: sstate{master: master}, closed: make(chan struct{})}
 	t.Cleanup(f.close)
 	go func() {
 		for {
@@ -158,6 +177,8 @@ func (f *fakeSentinel) serve(c net.Conn) {
 		st := f.st
 		f.mu.Unlock()
 		switch {
+		case args[0] == "auth" && st.dropAuth:
+			return
 		case args[0] == "auth":
 			f.set(func(f *sstate) {
 				f.auths = append(f.auths, args)
@@ -167,8 +188,7 @@ func (f *fakeSentinel) serve(c net.Conn) {
 			} else {
 				f.write(c, "+OK\r\n")
 			}
-		case len(args) == 3 &&
-			args[1] == "get-master-addr-by-name":
+		case len(args) == 3 && args[1] == "get-master-addr-by-name":
 			if st.hang {
 				<-f.closed
 				return
@@ -179,35 +199,48 @@ func (f *fakeSentinel) serve(c net.Conn) {
 			case st.master == "":
 				f.write(c, "*-1\r\n")
 			default:
-				h, p, _ := net.SplitHostPort(
-					st.master)
+				h, p, _ := net.SplitHostPort(st.master)
 				f.write(c, "*2\r\n"+bulk(h)+bulk(p))
 			}
+		case len(args) == 3 && args[1] == "sentinels" && st.hangPeer:
+			<-f.closed
+			return
+		case len(args) == 3 && args[1] == "sentinels" && st.peersRaw != "":
+			f.write(c, st.peersRaw)
 		case len(args) == 3 && args[1] == "sentinels":
 			out := fmt.Sprintf("*%d\r\n", len(st.peers))
 			for _, p := range st.peers {
-				h, port, _ := net.SplitHostPort(
-					p.addr)
-				out += "*8\r\n" + bulk("name") +
-					bulk(p.addr) + bulk("ip") +
-					bulk(h) + bulk("port") +
+				h, port, _ := net.SplitHostPort(p.addr)
+				fields := "*10\r\n"
+				if p.runid == "" {
+					fields = "*8\r\n"
+				}
+				out += fields + bulk("name") + bulk(p.addr) + bulk("ip") + bulk(h) + bulk("port") +
 					bulk(port) + bulk("flags") +
 					bulk("sentinel"+p.flags)
+				if p.runid != "" {
+					out += bulk("runid") + bulk(p.runid)
+				}
 			}
 			f.write(c, out)
 		case args[0] == "subscribe":
-			f.write(c, "*3\r\n"+bulk("subscribe")+
-				bulk("+switch-master")+":1\r\n")
+			f.write(c, "*3\r\n"+bulk("subscribe")+bulk("+switch-master")+":1\r\n")
 			if st.dropSub {
 				return
 			}
 			f.set(func(f *sstate) {
 				f.subs = append(f.subs, c)
 			})
+		case args[0] == "info" && st.hangInfo:
+			<-f.closed
+			return
+		case args[0] == "info" && st.infoRaw != "":
+			f.write(c, st.infoRaw)
+		case args[0] == "info" && st.runid != "":
+			f.write(c, bulk("# Server\r\nredis_mode:sentinel\r\nrun_id:"+st.runid+"\r\n"))
 		case args[0] == "ping":
 			if !st.silent {
-				f.write(c, "*2\r\n"+bulk("pong")+
-					bulk(""))
+				f.write(c, "*2\r\n"+bulk("pong")+bulk(""))
 			}
 		default:
 			f.write(c, "-ERR unknown command\r\n")
@@ -220,8 +253,7 @@ func (f *fakeSentinel) publish(payload string) {
 	subs := append([]net.Conn(nil), f.st.subs...)
 	f.mu.Unlock()
 	for _, c := range subs {
-		c.Write([]byte("*3\r\n" + bulk("message") +
-			bulk("+switch-master") + bulk(payload)))
+		c.Write([]byte("*3\r\n" + bulk("message") + bulk("+switch-master") + bulk(payload)))
 	}
 }
 
@@ -246,6 +278,16 @@ func modes(t *testing.T, fn func(t *testing.T)) {
 
 func reset(t *testing.T, sentinels ...*fakeSentinel) {
 	*majority = testMajority
+	*debug = false
+	*eventListener = false
+	*timeout = 2000
+	*check = 250
+	*maxConns = 10000
+	*tlsOn = false
+	*tlsCA, *tlsCert, *tlsKey, *tlsName = "", "", "", ""
+	sentinelTLS = nil
+	activeConns.Store(0)
+	limitLogged.Store(0)
 	masterMu.Lock()
 	masterAddr = nil
 	masterStop = make(chan struct{})
@@ -275,18 +317,31 @@ func waitMaster(t *testing.T, want string, within time.Duration) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatalf("master is %s, want %s after %v", cur(), want,
-		within)
+	t.Fatalf("master is %s, want %s after %v", cur(), want, within)
 }
 
 func deadAddr(t *testing.T) string {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	addr, _ := reserveAddr(t)
+	return addr
+}
+
+func reserveAddr(t *testing.T) (string, func()) {
+	t.Helper()
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	addr := l.Addr().String()
-	l.Close()
-	return addr
+	var once sync.Once
+	release := func() { once.Do(func() { syscall.Close(fd) }) }
+	t.Cleanup(release)
+	if err := syscall.Bind(fd, &syscall.SockaddrInet4{Addr: [4]byte{127, 0, 0, 1}}); err != nil {
+		t.Fatal(err)
+	}
+	sa, err := syscall.Getsockname(fd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf("127.0.0.1:%d", sa.(*syscall.SockaddrInet4).Port), release
 }
 
 func pollOK(t *testing.T) {
@@ -300,8 +355,7 @@ func pollFails(t *testing.T, want string) {
 	t.Helper()
 	err := getMasterAddr()
 	if err == nil {
-		t.Fatalf("getMasterAddr succeeded, want error %q",
-			want)
+		t.Fatalf("getMasterAddr succeeded, want error %q", want)
 	}
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("getMasterAddr error %q, want %q", err, want)
@@ -327,8 +381,7 @@ func TestMajorityWins(t *testing.T) {
 		*sentinelAddr = strings.Join(addrs, ",")
 		pollOK(t)
 		if cur() != r1.addr() {
-			t.Fatalf("poll %d: master %s, want %s",
-				i, cur(), r1.addr())
+			t.Fatalf("poll %d: master %s, want %s", i, cur(), r1.addr())
 		}
 	}
 }
@@ -356,8 +409,7 @@ func TestNoFlipFlopBehindOneAddress(t *testing.T) {
 		*sentinelAddr = all[i%3].addr()
 		pollOK(t)
 		if cur() != r1.addr() {
-			t.Fatalf("poll %d via %s: master %s, want %s",
-				i, *sentinelAddr, cur(), r1.addr())
+			t.Fatalf("poll %d via %s: master %s, want %s", i, *sentinelAddr, cur(), r1.addr())
 		}
 	}
 	select {
@@ -405,8 +457,7 @@ func TestTieKeepsCurrent(t *testing.T) {
 	s2.set(func(f *sstate) { f.master = r2.addr() })
 	pollFails(t, "No master has a majority")
 	if cur() != r1.addr() {
-		t.Fatalf("master %s, want %s kept on a tie",
-			cur(), r1.addr())
+		t.Fatalf("master %s, want %s kept on a tie", cur(), r1.addr())
 	}
 }
 
@@ -492,8 +543,7 @@ func testHungSentinelTimesOut(t *testing.T) {
 	start := time.Now()
 	pollFails(t, "No Sentinels returned a valid master")
 	if d := time.Since(start); d > 2*timeoutms*time.Millisecond {
-		t.Fatalf("poll took %v with timeoutms=%d", d,
-			timeoutms)
+		t.Fatalf("poll took %v with timeoutms=%d", d, timeoutms)
 	}
 	s2 := newSentinel(t, r1.addr())
 	*sentinelAddr = hung.addr() + "," + s2.addr()
@@ -529,20 +579,15 @@ func testBadReplies(t *testing.T) {
 		name, raw, want string
 	}{
 		{"nil master", "", "No Sentinels returned"},
-		{"error reply", "-ERR no such master\r\n",
-			none},
+		{"error reply", "-ERR no such master\r\n", none},
 		{"garbage", "hello\r\n", "No Sentinels returned"},
 		{"huge bulk", "$99999999999\r\n", none},
 		{"huge array", "*99999999\r\n", none},
-		{"short array", "*1\r\n$3\r\nabc\r\n",
-			none},
-		{"non-string items", "*2\r\n*0\r\n*0\r\n",
-			none},
+		{"short array", "*1\r\n$3\r\nabc\r\n", none},
+		{"non-string items", "*2\r\n*0\r\n*0\r\n", none},
 		{"truncated", "*2\r\n$9\r\n127.0", none},
-		{"bad port", "*2\r\n" + bulk("127.0.0.1") + bulk("x"),
-			none},
-		{"port range", "*2\r\n" + bulk("127.0.0.1") +
-			bulk("70000"), "No Sentinels returned"},
+		{"bad port", "*2\r\n" + bulk("127.0.0.1") + bulk("x"), none},
+		{"port range", "*2\r\n" + bulk("127.0.0.1") + bulk("70000"), "No Sentinels returned"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -552,21 +597,17 @@ func testBadReplies(t *testing.T) {
 			reset(t, s)
 			timeoutms = 200
 			err := getMasterAddr()
-			if err == nil ||
-				!strings.Contains(err.Error(),
-					c.want) {
-				t.Fatalf("error %v, want %q", err,
-					c.want)
+			if err == nil || !strings.Contains(err.Error(),
+				c.want) {
+				t.Fatalf("error %v, want %q", err, c.want)
 			}
 			if cur() != "<nil>" {
-				t.Fatalf("master %s set from bad "+
-					"reply", cur())
+				t.Fatalf("master %s set from bad reply", cur())
 			}
 			*sentinelAddr = s.addr() + "," + good.addr()
 			pollOK(t)
 			if cur() != r1.addr() {
-				t.Fatalf("master %s, want %s", cur(),
-					r1.addr())
+				t.Fatalf("master %s, want %s", cur(), r1.addr())
 			}
 		})
 	}
@@ -583,8 +624,7 @@ func testAuth(t *testing.T) {
 	pollOK(t)
 	s1.set(func(f *sstate) {
 		if len(f.auths) != 0 {
-			t.Errorf("AUTH sent without a password: %v",
-				f.auths)
+			t.Errorf("AUTH sent without a password: %v", f.auths)
 		}
 	})
 	*password = "p w"
@@ -747,8 +787,7 @@ func TestEventTriggersMajorityVote(t *testing.T) {
 	s1.publish(switchPayload("mymaster", r1.addr(), r2.addr()))
 	time.Sleep(time.Second)
 	if cur() != r1.addr() {
-		t.Fatalf("switched to %s on one sentinel's event",
-			cur())
+		t.Fatalf("switched to %s on one sentinel's event", cur())
 	}
 	s2.set(func(f *sstate) { f.master = r2.addr() })
 	waitMaster(t, r2.addr(), 2*time.Second)
@@ -900,11 +939,9 @@ func testWatchSentinelClosesConnections(t *testing.T) {
 	}
 }
 
-func startProxy(t *testing.T, addr *net.TCPAddr,
-	stop <-chan struct{}) *net.TCPConn {
+func startProxy(t *testing.T, addr *net.TCPAddr, stop <-chan struct{}) *net.TCPConn {
 	t.Helper()
-	l, err := net.ListenTCP("tcp",
-		&net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -989,8 +1026,7 @@ func TestProxyRedisGoesAway(t *testing.T) {
 			c.Close()
 		}
 	}()
-	c := startProxy(t, resolve(t, l.Addr().String()),
-		make(chan struct{}))
+	c := startProxy(t, resolve(t, l.Addr().String()), make(chan struct{}))
 	b, err := io.ReadAll(c)
 	if err != nil || string(b) != "-ERR bye\r\n" {
 		t.Fatalf("got %q, %v", b, err)
@@ -1006,8 +1042,7 @@ func TestProxyNoMaster(t *testing.T) {
 }
 
 func TestProxyUnreachableMaster(t *testing.T) {
-	c := startProxy(t, resolve(t, deadAddr(t)),
-		make(chan struct{}))
+	c := startProxy(t, resolve(t, deadAddr(t)), make(chan struct{}))
 	b, err := io.ReadAll(c)
 	if err != nil || len(b) != 0 {
 		t.Fatalf("got %q, %v, want immediate close", b, err)
@@ -1075,7 +1110,7 @@ func TestSubscribeAsksThatSentinelByDefault(t *testing.T) {
 
 func TestNewerEventCancelsOlderRetry(t *testing.T) {
 	r1, r3 := newRedis(t), newRedis(t)
-	later := deadAddr(t)
+	later, release := reserveAddr(t)
 	s1 := newSentinel(t, r1.addr())
 	reset(t, s1)
 	startWatch(t, s1)
@@ -1088,6 +1123,7 @@ func TestNewerEventCancelsOlderRetry(t *testing.T) {
 	s1.publish(switchPayload("mymaster", later, r3.addr()))
 	waitMaster(t, r3.addr(), 2*time.Second)
 
+	release()
 	l, err := net.Listen("tcp", later)
 	if err != nil {
 		t.Skipf("cannot reopen %s: %v", later, err)
@@ -1096,7 +1132,6 @@ func TestNewerEventCancelsOlderRetry(t *testing.T) {
 	go (&fakeRedis{l: l}).serve()
 	time.Sleep(time.Second)
 	if cur() != r3.addr() {
-		t.Fatalf("stale event retry moved master to %s",
-			cur())
+		t.Fatalf("stale event retry moved master to %s", cur())
 	}
 }

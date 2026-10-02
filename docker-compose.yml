@@ -5,7 +5,7 @@ services:
     build: .
     container_name: redis-proxy
     ports:
-      - 36379:6379
+      - 127.0.0.1:36379:6379
     environment:
       - LISTEN=:6379
       - SENTINEL=:26379

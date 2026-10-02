@@ -29,6 +29,7 @@ FROM scratch
 COPY --from=libs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /go/src/redis-sentinel-proxy /redis-sentinel-proxy
 COPY --from=build /go/src/health /health
+USER 65534:65534
 ENTRYPOINT ["/redis-sentinel-proxy"]
 HEALTHCHECK --interval=5s --timeout=3s --start-period=15s --retries=3 CMD [ "/health" ]
 

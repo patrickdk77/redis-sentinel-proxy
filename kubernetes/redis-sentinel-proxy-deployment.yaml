@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: redis-sentinel-proxy
-        image: patrickdk/redis-sentinel-proxy:latest
+        image: patrickdk/redis-sentinel-proxy:v1.2
         env:
           - name: NAMESPACE
             valueFrom:
@@ -27,6 +27,16 @@ spec:
             value: "redis-sentinel.$(NAMESPACE):26379"
         ports:
         - containerPort: 9999
+        readinessProbe:
+          exec:
+            command: ["/health"]
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          tcpSocket:
+            port: 9999
+          periodSeconds: 10
+          timeoutSeconds: 3
         securityContext:
           allowPrivilegeEscalation: false
           runAsNonRoot: true

@@ -25,10 +25,18 @@ USERNAME                  | username to authenticate with if using v6 acls    | 
 PASSWORD                  | password to authenticate with to sentinel         |          | -
 REDIS_PASSWORD            | password to authenticate with to redis if different from sentinel |          | -
 DEBUG                     | debug output                                      |          | false
-TIMEOUTMS                 | timeout for sentinel and master connections       |          | 2000
-CHECKMS                   | poll time to check sentinel for master changes, set to 0 to disable checks |          | 250
+TIMEOUTMS                 | timeout for sentinel and master connections, must be greater than 0 |          | 2000
+CHECKMS                   | poll time to check sentinel for master changes. 0 turns polling off and needs EVENTLISTENER. The proxy refuses to start on a negative value |          | 250
 EVENTLISTENER             | subscribe to master changes from sentinal         |          | false
-MAJORITY                  | switch only when most sentinels that answer agree on the master. Also asks the peer sentinels each one lists. A switch-master event starts a recount instead of switching |          | false
+MAJORITY                  | switch only when most sentinels that answer agree on the master. Each sentinel counts once, by its run ID. Also asks up to 10 peer sentinels that most of the listed sentinels report. A switch-master event starts a recount instead of switching |          | false
+MAXCONNS                  | maximum client connections, 0 for no limit. The proxy closes connections over the limit |          | 10000
+SENTINELTLS               | connect to sentinels over TLS                     |          | false
+SENTINELTLSCA             | CA file to verify sentinel certificates. Without it the proxy uses the system CA roots |          | -
+SENTINELTLSCERT           | client certificate file, for sentinels that require one |          | -
+SENTINELTLSKEY            | key file for SENTINELTLSCERT                      |          | -
+SENTINELTLSSERVERNAME     | name to check sentinel certificates against, when they don't cover the address in SENTINEL |          | -
+
+Boolean settings take true or false. 1, 0, t and f also work, on/off and yes/no don't, and the proxy exits at startup on any other value.
 
 
 

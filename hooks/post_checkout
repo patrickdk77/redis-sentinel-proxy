@@ -21,16 +21,9 @@ if [[ $(docker -v | cut -d. -f 1 | cut -d' ' -f3) -lt 19 ]]; then
     tar xvz docker/docker
 fi
 
-NEED_EXPERIMENTAL=0
-if [ -e ~/.docker/config.json ]; then
-  if [ $(grep experimental.*enabled ~/.docker/config.json) ]; then
-    NEED_EXPERIMENTAL=1
-  fi
-else
-  NEED_EXPERIMENTAL=1
-fi
+source hooks/docker_config.sh
 
-if [ ${NEED_EXPERIMENTAL} -gt 0 ]; then
+if docker_config_needed; then
   echo "✅ Build a usable config.json file"
   echo "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯"
   # Manifests are still experimental and enabled by a config file flag.
@@ -38,10 +31,7 @@ if [ ${NEED_EXPERIMENTAL} -gt 0 ]; then
   # images is available in an environment variable. Let's create a config file to
   # combine the two things:
   # 
-  mkdir -p ~/.docker
-  jq --null-input --argjson auths "$DOCKERCFG" '. + {auths: $auths}' | \
-  jq --arg experimental enabled '. + {experimental: $experimental}' | \
-  sponge ~/.docker/config.json
+  update_docker_config
 fi
 
 NEED_QEMU=0
